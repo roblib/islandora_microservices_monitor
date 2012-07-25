@@ -1,0 +1,160 @@
+<?php
+
+/*
+ * @file islandora.module
+ * defines paths (drupal menu items) as entry points and acts as a hub for dispatching tasks to other modules.
+ * 
+ * 
+ * This file is part of Islandora.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with the program.  If not, see <http ://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Implementation of hook_menu. 
+ * we need some standard entry points so we can have consistent urls for different Object actions
+ */
+function islandora_microservices_monitor_menu() {
+  $items = array();
+
+  $items['admin/islandora/microservices_monitor'] = array(
+    'title' => 'Microservices configuration',
+    'description' => 'Configure settings for Islandora microservices.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('islandora_microservices_monitor_admin'),
+    'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => -1,
+  );
+
+  $items['islandora_microservices_monitor'] = array(
+    'title' => 'Islandora microservices monitor',
+    'page callback' => 'islandora_microservices_monitor_view',
+    'type' => MENU_NORMAL_ITEM,
+    'access arguments' => array('administer site configuration'),
+  );
+
+  $items['islandora/object/%islandora_object/manage/microservices_monitor'] = array(
+    'title' => 'Microservices',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('islandora_microservices_monitor_object_form', 2),
+    'type' => MENU_LOCAL_TASK,
+    'access arguments' => array('administer site configuration'),
+    'weight' => 5,
+  );
+
+  return $items;
+}
+
+function islandora_microservices_monitor_admin() {
+  $form = array();
+
+  $form['islandora_microservices_monitor_listener_ip'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Listener IP address'),
+    '#default_value' => variable_get('islandora_microservices_monitor_listener_ip', 'localhost'),
+    '#size' => 12,
+  );
+
+  $form['islandora_microservices_monitor_listener_port'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Listener port'),
+    '#default_value' => variable_get('islandora_microservices_monitor_listener_port', '80'),
+    '#size' => 8,
+  );
+
+  return system_settings_form($form);
+}
+
+function islandora_microservices_monitor_view() {
+  $form = array();
+  $ch = curl_init();
+  $address = variable_get('islandora_microservices_monitor_listener_ip', 'localhost');
+  $port = variable_get('islandora_microservices_monitor_listener_port', '80');
+  curl_setopt($ch, CURLOPT_URL, "http://$address:$port/index.php?action=list");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  $list_array = json_decode($response);
+//  $list_array = array_filter(explode("\n", $list));
+  $list_arrays = array();
+  if ($list_array) {
+    foreach ($list_array as $line) {
+      $list_arrays[] = explode(', ', $line);
+    }
+
+    $headers = array(
+      t('Date'),
+      t('Time'),
+      t('Level'),
+      t('Action'),
+      t('PID'),
+      t('DSID'),
+      t('User'),
+      t('Message'),
+      t('Script'),
+    );
+
+    $form['table'] = array(
+      '#theme' => 'table',
+      '#header' => $headers,
+      '#rows' => $list_arrays,
+    );
+  }
+  else {
+    drupal_set_message(t('No respsonse from the processing server!'), 'warning');
+  }
+
+  return $form;
+}
+
+function islandora_microservices_monitor_object_form($form, &$form_state, $object) {
+  $ch = curl_init();
+  $address = variable_get('islandora_microservices_monitor_listener_ip', 'localhost');
+  $port = variable_get('islandora_microservices_monitor_listener_port', '80');
+  curl_setopt($ch, CURLOPT_URL, "http://$address:$port/index.php?action=object&pid=$object->id");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  $list_array = json_decode($response);
+//  $list_array = array_filter(explode("\n", $list));
+  $list_arrays = array();
+  if ($list_array) {
+    foreach ($list_array as $line) {
+      $list_arrays[] = explode(', ', $line);
+    }
+  }
+
+  $headers = array(
+    t('Date'),
+    t('Time'),
+    t('Level'),
+    t('Action'),
+    t('PID'),
+    t('DSID'),
+    t('User'),
+    t('Message'),
+    t('Script'),
+  );
+
+  $form['table'] = array(
+    '#theme' => 'table',
+    '#header' => $headers,
+    '#rows' => $list_arrays,
+    '#empty' => t('No entries found for this object'),
+  );
+
+
+  return $form;
+}
