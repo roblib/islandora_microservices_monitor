@@ -1,7 +1,7 @@
 <?php
 
 /*
- * @file islandora_microservices_monitor.module
+ * @file islandora.module
  * defines paths (drupal menu items) as entry points and acts as a hub for dispatching tasks to other modules.
  * 
  * 
@@ -23,7 +23,7 @@
 
 /**
  * Implementation of hook_menu. 
- * Build menus for general view, object view and admin settings page.
+ * we need some standard entry points so we can have consistent urls for different Object actions
  */
 function islandora_microservices_monitor_menu() {
   $items = array();
@@ -40,7 +40,8 @@ function islandora_microservices_monitor_menu() {
 
   $items['islandora_microservices_monitor'] = array(
     'title' => 'Islandora microservices monitor',
-    'page callback' => 'islandora_microservices_monitor_view',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('islandora_microservices_monitor_view'),
     'type' => MENU_NORMAL_ITEM,
     'access arguments' => array('administer site configuration'),
   );
@@ -57,11 +58,6 @@ function islandora_microservices_monitor_menu() {
   return $items;
 }
 
-/**
- * Build form for admin settings
- * 
- * @return type 
- */
 function islandora_microservices_monitor_admin() {
   $form = array();
 
@@ -82,17 +78,49 @@ function islandora_microservices_monitor_admin() {
   return system_settings_form($form);
 }
 
-/**
- * Build general view for microservices log
- * 
- * @return type 
- */
 function islandora_microservices_monitor_view() {
-  $form = array();
   $ch = curl_init();
   $address = variable_get('islandora_microservices_monitor_listener_ip', 'localhost');
   $port = variable_get('islandora_microservices_monitor_listener_port', '80');
   curl_setopt($ch, CURLOPT_URL, "http://$address:$port/index.php?action=list");
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $response = curl_exec($ch);
+  curl_close($ch);
+  $list_array = json_decode($response);
+//  $list_array = array_filter(explode("\n", $list));
+  $list_arrays = array();
+  foreach ($list_array as $line) {
+    $list_arrays[] = explode(', ', $line);
+  }
+
+  $headers = array(
+    t('Date'),
+    t('Time'),
+    t('Level'),
+    t('Action'),
+    t('PID'),
+    t('DSID'),
+    t('User'),
+    t('Message'),
+    t('Script'),
+  );
+
+  $output = theme_table($headers, $list_arrays);
+
+  $form['table'] = array(
+    '#value' => $output,
+    '#prefix' => '<div style="overflow: auto">',
+    '#suffix' => '</div>',
+  );
+
+  return $form;
+}
+
+function islandora_microservices_monitor_object_form($form_state, $pid) {
+  $ch = curl_init();
+  $address = variable_get('islandora_microservices_monitor_listener_ip', 'localhost');
+  $port = variable_get('islandora_microservices_monitor_listener_port', '80');
+  curl_setopt($ch, CURLOPT_URL, "http://$address:$port/index.php?action=object&pid=$pid");
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
   $response = curl_exec($ch);
   curl_close($ch);
@@ -117,62 +145,29 @@ function islandora_microservices_monitor_view() {
     );
 
     $form['table'] = array(
-      '#theme' => 'table',
-      '#header' => $headers,
-      '#rows' => $list_arrays,
+      '#value' => theme('table', $headers, $list_arrays),
+      '#prefix' => '<div style="height:600px; overflow:auto">',
+      '#suffix' => '</div>',
     );
   }
   else {
-    drupal_set_message(t('No respsonse from the processing server!'), 'warning');
+    $form['empty'] = array(
+      '#value' => t('No entries found!'),
+      '#prefix' => '<p>',
+      '#suffix' => '</p>',
+    );
   }
-
   return $form;
 }
 
-/**
- * Build form to show microservices events for individual objects
- * 
- * @param type $form
- * @param type $form_state
- * @param $fedora_object $object
- * @return $form
- */
-function islandora_microservices_monitor_object_form($form, &$form_state, $object) {
-  $ch = curl_init();
-  $address = variable_get('islandora_microservices_monitor_listener_ip', 'localhost');
-  $port = variable_get('islandora_microservices_monitor_listener_port', '80');
-  curl_setopt($ch, CURLOPT_URL, "http://$address:$port/index.php?action=object&pid=$object->id");
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-  $response = curl_exec($ch);
-  curl_close($ch);
-  $list_array = json_decode($response);
-//  $list_array = array_filter(explode("\n", $list));
-  $list_arrays = array();
-  if ($list_array) {
-    foreach ($list_array as $line) {
-      $list_arrays[] = explode(', ', $line);
-    }
-  }
-
-  $headers = array(
-    t('Date'),
-    t('Time'),
-    t('Level'),
-    t('Action'),
-    t('PID'),
-    t('DSID'),
-    t('User'),
-    t('Message'),
-    t('Script'),
+function islandora_microservices_monitor_islandora_tabs($content_models, $pid) {
+  
+  $content = drupal_get_form('islandora_microservices_monitor_object_form', $pid);
+  $form['microservices_tab'] = array(
+    '#type' => 'tabpage',
+    '#title' => t('Microservices'),
+    '#content' => $content,
+    '#selected' => FALSE,
   );
-
-  $form['table'] = array(
-    '#theme' => 'table',
-    '#header' => $headers,
-    '#rows' => $list_arrays,
-    '#empty' => t('No entries found for this object'),
-  );
-
-
   return $form;
 }
