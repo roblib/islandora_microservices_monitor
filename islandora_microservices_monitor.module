@@ -93,6 +93,13 @@ function islandora_microservices_monitor_admin() {
   return system_settings_form($form);
 }
 
+/**
+ * Callback to check the details of the microservices REST interface
+ * 
+ * @param type $form
+ * @param array $form_state
+ * @return type
+ */
 function islandora_microservices_monitor_check($form, &$form_state) {
   $form_state['rebuild'] = TRUE;
   $solr_ip = $form_state['values']['islandora_microservices_monitor_listener_ip'];
@@ -203,7 +210,6 @@ function islandora_microservices_monitor_object_form($form, &$form_state, $objec
     '#rows' => $list_arrays,
     '#empty' => t('No entries found for this object'),
   );
-
 
   return $form;
 }
