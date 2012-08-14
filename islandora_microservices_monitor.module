@@ -77,9 +77,40 @@ function islandora_microservices_monitor_admin() {
     '#title' => t('Listener port'),
     '#default_value' => variable_get('islandora_microservices_monitor_listener_port', '80'),
     '#size' => 8,
+    '#ajax' => array(
+      'callback' => 'islandora_microservices_monitor_check',
+      'wrapper' => 'check-div',
+      'effect' => 'fade',
+      'event' => 'blur',
+      'progress' => array('type' => 'throbber'),
+    ),
+  );
+
+  $form['islandora_microservices_monitor_check'] = array(
+    '#markup' => '<div id="check-div"></div>',
   );
 
   return system_settings_form($form);
+}
+
+function islandora_microservices_monitor_check($form, &$form_state) {
+  $form_state['rebuild'] = TRUE;
+  $solr_ip = $form_state['values']['islandora_microservices_monitor_listener_ip'];
+  $solr_port = $form_state['values']['islandora_microservices_monitor_listener_port'];
+  $solr_url = "http://$solr_ip:$solr_port";
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $solr_url . '/index.php?action=ping');
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  $response = curl_exec($ch);
+  curl_close($ch);
+
+  if ($response == 'Microservices REST interface') {
+    return '<div id="check-div"><img src="' . url('misc/watchdog-ok.png') . '"/> Connected to microservices REST interface</div>';
+  }
+  else {
+    return '<div id="check-div"><img src="' . url('misc/watchdog-error.png') . '"/> Could not connect to microservices REST interface at ' . $solr_url . '</div>';
+  }
 }
 
 /**
