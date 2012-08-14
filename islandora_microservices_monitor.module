@@ -28,14 +28,13 @@
 function islandora_microservices_monitor_menu() {
   $items = array();
 
-  $items['admin/islandora/microservices_monitor'] = array(
-    'title' => 'Microservices configuration',
+  $items['admin/settings/microservices_monitor'] = array(
+    'title' => 'Islandora microservices configuration',
     'description' => 'Configure settings for Islandora microservices.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('islandora_microservices_monitor_admin'),
     'access arguments' => array('administer site configuration'),
     'type' => MENU_NORMAL_ITEM,
-    'weight' => -1,
   );
 
   $items['islandora_microservices_monitor'] = array(
